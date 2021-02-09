@@ -1,42 +1,41 @@
 import socket
 import re
+
 link = "http://mib.utm.md/"
-target_host = "www.me.utm.md"
-target_port = 80
+host = "me.utm.md"
+port = 80
+img_id = 1
 
 
-def con(host, request):
-    client = socket.socket()
-    client.connect((host, target_port))
-    client.sendall(request.encode())
-    res = b''
-    data = client.recv(1024)
+def connection(host, message):
+    s = socket.socket()
+    s.connect((host, 80))
+    s.send(message.encode())
+    response = b''
+    data = s.recv(1024)
+
     while data:
-        res += data
-        data = client.recv(1024)
-    return res
+        response += data
+        data = s.recv(1024)
+    return response
 
 
-request = "GET / HTTP/1.1\r\nHost:%s\r\n\r\n" % target_host
-res = con(target_host, request)
-img_urs = re.findall(
-    r'<img[^<>]+src=["\']([^"\'<>]+\.(?:gif|png|jpe?g))["\']', res.decode(), re.S)
-img_name = 1
+initial_message = 'GET / HTTP/1.1/\r\nHost: me.utm.md \r\n\r\n'
+initial_response = connection(host, initial_message)
 
 
-for img_url in img_urs:
+images = re.findall(
+    b'<img[^<>]+src=["\']([^"\'<>]+\.(?:gif|png|jpe?g))["\']', initial_response, re.S)
 
-    if link not in img_url:
-        img_url = link + img_url
-    print(img_url)
+for image in images:
+    image = image.decode()
+    if link in image:
+        image = image.split(link)[1]
 
-    img_host = re.findall(r'//(.*?)/', img_url, re.S)[0]
-    img_path = re.findall(r'.md(.*)', img_url, re.S)[-1]
-    img_data = 'GET {} HTTP/1.1\r\nHOST:{}\r\nReferer:{}\r\n\r\n'.format(
-        img_path, img_host, target_host)
-    img_res = con(img_host, img_data)
-    img_content = re.findall(b'\r\n\r\n(.*)', img_res, re.S)[0]
-    file_name = str(img_name) + " Imagine" + ".jpg"
-    with open(file_name, 'wb') as f:
+    message = 'GET {} HTTP/1.1\r\nHost: me.utm.md\r\n\r\n'.format("/" + image)
+
+    response = connection(host, message)
+    img_content = re.findall(b'\r\n\r\n(.*)', response, re.S)[0]
+    with open(str(img_id) + '.jpg', 'wb') as f:
         f.write(img_content)
-    img_name += 1
+    img_id += 1
