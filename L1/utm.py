@@ -1,26 +1,30 @@
 import socket
 import re
+import ssl
 from threading import *
 
 sem = Semaphore(2)
+link = "https://utm.md/"
+host = "utm.md"
+port = 443
 
-link = "http://mib.utm.md/"
-host = "me.utm.md"
-port = 80
 
-
-def connection(host, message):
-    s = socket.socket()
-    s.connect((host, 80))
-    s.send(message.encode())
+def connections(host, message):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1.0)
+    s_sock = context.wrap_socket(s, server_hostname=host)
+    s_sock.connect((host, port))
+    s_sock.sendall(message.encode())
     print("Connection made")
     res = b''
-    data = s.recv(1024)
-
+    data = s_sock.recv(1024)
     while data:
-        res += data
-        data = s.recv(1024)
-    print("Data recieved")
+        try:
+            data = s_sock.recv(1024)
+            res += data
+        except socket.timeout:
+            break
     return res
 
 
@@ -31,19 +35,8 @@ def decode(images):
         if link in image:
             image = image.split(link)[1]
         decoded_images.append(image)
+        print("Images decoded")
     return decoded_images
-
-
-def download(decoded_images, img_id):
-
-    for decoded_image in decoded_images:
-        message = 'GET {} HTTP/1.1\r\nHost: me.utm.md\r\n\r\n'.format(
-            "/" + decoded_image)
-        response = connection(host, message)
-        img_content = re.findall(b'\r\n\r\n(.*)', response, re.S)[0]
-        with open("meutm/"+str(img_id) + '.jpg', 'wb') as f:
-            f.write(img_content)
-        img_id += 4
 
 
 def devider(l, n):
@@ -58,15 +51,26 @@ def devider(l, n):
     return out
 
 
+def download(decoded_images, img_id):
+    for decoded_image in decoded_images:
+        message = 'GET {} HTTP/1.1\r\nHost: utm.md\r\n\r\n'.format(
+            "/" + decoded_image)
+        response = connections(host, message)
+        with open('utm/'+str(img_id) + '.jpg', 'wb') as f:
+            f.write(response)
+        print("Image downloaded")
+        img_id += 4
+
+
 def main(t_id):
     sem.acquire()
-    initial_message = 'GET / HTTP/1.1/\r\nHost: me.utm.md \r\n\r\n'
-    initial_response = connection(host, initial_message)
-
+    initial_message = "GET / HTTP/1.1\r\nHost:utm.md\r\n\r\n"
+    initial_response = connections(host, initial_message)
     images = re.findall(
         b'<img[^<>]+src=["\']([^"\'<>]+\.(?:gif|png|jpe?g))["\']', initial_response, re.S)
     decoded_images = decode(images)
     decoded_images = list(devider(decoded_images, 4))
+
     download(decoded_images[t_id-1], t_id)
     sem.release()
 
