@@ -1,26 +1,36 @@
 import requests
 import re
 from threading import *
+import json
 
 sem = Semaphore(1)
 
 
 def showNews(news, t_id):
+    data = {}
     authors = re.findall('(?<=author":)(.*?)(?=,"title)', str(news.text))
     titles = re.findall('(?<=title":)(.*?)(?=,"description)', str(news.text))
     urls = re.findall('(?<=url":)(.*?)(?=,"urlToImage)', str(news.text))
 
-    for author, title, url in zip(authors[t_id - 1::2], titles[t_id - 1::2],
-                                  urls[t_id - 1::2]):
+    for id, author, title, url in zip(range(1,
+                                            len(titles) + 1),
+                                      authors[t_id - 1::2],
+                                      titles[t_id - 1::2], urls[t_id - 1::2]):
         sem.acquire()
+        data[id] = []
         if author != "null":
             print("Author: " + author)
+            data[id].append({"author": author[1:-1]})
         else:
             pass
         print("Title: " + title)
+        data[id].append({"title": title[1:-1]})
         print("URL: " + url)
+        data[id].append({"url": url[1:-1]})
         print("----------------")
         sem.release()
+    with open('data.json', 'w') as outfile:
+        json.dump(data, outfile)
 
 
 def categoryPick():
